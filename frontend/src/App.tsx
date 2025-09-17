@@ -4,31 +4,35 @@ import "./App.css";
 function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([]);
+  const [isThinking, setIsThinking] = useState(false); // ✅ new state
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isThinking]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    setMessages([...messages, { role: "user", text: input }]);
+    const messageToSend = input;
+    setMessages([...messages, { role: "user", text: messageToSend }]);
+    setInput("");
+    setIsThinking(true); // ✅ show thinking
 
     try {
       const res = await fetch("http://127.0.0.1:5000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: messageToSend }),
       });
 
       const data = await res.json();
       setMessages((prev) => [...prev, { role: "bot", text: data.reply }]);
-      setInput("");
     } catch (err) {
       console.error(err);
       setMessages((prev) => [...prev, { role: "bot", text: "Error contacting backend." }]);
+    } finally {
+      setIsThinking(false); // ✅ hide thinking
     }
   };
 
@@ -43,6 +47,11 @@ function App() {
               <span>{m.text}</span>
             </div>
           ))}
+          {isThinking && (
+            <div className="message bot">
+              <span>...</span>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
