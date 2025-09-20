@@ -11,30 +11,58 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
+  useEffect(() => {
+    const initialBotMessage = { role: "bot", text: "Hello! I'm SolaceAI. How are you feeling today?" };
+    setMessages([initialBotMessage]);
+  }, []);  
+
   const sendMessage = async () => {
     if (!input.trim()) return;
-
+  
     const messageToSend = input;
-    setMessages([...messages, { role: "user", text: messageToSend }]);
+    setMessages(prev => [...prev, { role: "user", text: messageToSend }]);
     setInput("");
-    setIsThinking(true); // ✅ show thinking
-
+    setIsThinking(true);
+  
     try {
       const res = await fetch("http://127.0.0.1:5000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: messageToSend }),
       });
-
-      const data = await res.json();
-      setMessages((prev) => [...prev, { role: "bot", text: data.reply }]);
+  
+      if (!res.body) throw new Error("No response body");
+  
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let botMessage = "";
+  
+      // Add placeholder bot message
+      setMessages(prev => [...prev, { role: "bot", text: "" }]);
+  
+      let firstToken = true; // ✅ track first token
+  
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        botMessage += decoder.decode(value, { stream: true });
+  
+        // Hide "..." once first token arrives
+        if (firstToken) setIsThinking(false);
+        firstToken = false;
+  
+        setMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = { role: "bot", text: botMessage };
+          return newMessages;
+        });
+      }
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [...prev, { role: "bot", text: "Error contacting backend." }]);
-    } finally {
-      setIsThinking(false); // ✅ hide thinking
+      setMessages(prev => [...prev, { role: "bot", text: "Error contacting backend." }]);
+      setIsThinking(false);
     }
-  };
+  };  
 
   return (
     <div className="app-container">
